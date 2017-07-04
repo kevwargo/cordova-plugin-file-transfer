@@ -13,3 +13,8 @@ Thumbs.db
 *.user
 
 node_modules
+
+# Temp files
+*~
+\#*
+.#*
