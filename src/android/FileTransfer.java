@@ -37,6 +37,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 
@@ -64,6 +65,7 @@ import org.json.JSONObject;
 
 import android.net.Uri;
 import android.os.Build;
+import android.util.Base64;
 import android.webkit.CookieManager;
 
 public class FileTransfer extends CordovaPlugin {
@@ -263,6 +265,23 @@ public class FileTransfer extends CordovaPlugin {
         return cookie;
     }
 
+    private String generateFormBoundary() {
+        try {
+            StringBuilder boundaryBuffer = new StringBuilder();
+            Random random = new Random();
+            byte randomBytes[] = new byte[16];
+            boundaryBuffer.append("--------CordovaFileTransferBoundary");
+            random.nextBytes(randomBytes);
+            boundaryBuffer.append(Base64.encodeToString(randomBytes, Base64.NO_PADDING | Base64.NO_WRAP | Base64.URL_SAFE));
+            String boundary = boundaryBuffer.toString();
+            LOG.d(LOG_TAG, "Generated boundary: " + boundary);
+            return boundary;
+        } catch (Exception e) {
+            LOG.e(LOG_TAG, e.getMessage(), e);
+            return "--------CordovaFileTransferBoundary";
+        }
+    }
+
     /**
      * Uploads the specified file to the server URL provided using an HTTP multipart request.
      * @param source        Full path of the file on the file system
@@ -370,8 +389,9 @@ public class FileTransfer extends CordovaPlugin {
 
                     // if we specified a Content-Type header, don't do multipart form upload
                     boolean multipartFormUpload = (headers == null) || !headers.has("Content-Type");
+                    String boundary = generateFormBoundary();
                     if (multipartFormUpload) {
-                        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + BOUNDARY);
+                        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                     }
 
                     // Set the cookies on the response
@@ -396,7 +416,7 @@ public class FileTransfer extends CordovaPlugin {
                             Object key = iter.next();
                             if(!String.valueOf(key).equals("headers"))
                             {
-                              beforeData.append(LINE_START).append(BOUNDARY).append(LINE_END);
+                              beforeData.append(LINE_START).append(boundary).append(LINE_END);
                               beforeData.append("Content-Disposition: form-data; name=\"").append(key.toString()).append('"');
                               beforeData.append(LINE_END).append(LINE_END);
                               beforeData.append(params.getString(key.toString()));
@@ -407,12 +427,12 @@ public class FileTransfer extends CordovaPlugin {
                         LOG.e(LOG_TAG, e.getMessage(), e);
                     }
 
-                    beforeData.append(LINE_START).append(BOUNDARY).append(LINE_END);
+                    beforeData.append(LINE_START).append(boundary).append(LINE_END);
                     beforeData.append("Content-Disposition: form-data; name=\"").append(fileKey).append("\";");
                     beforeData.append(" filename=\"").append(fileName).append('"').append(LINE_END);
                     beforeData.append("Content-Type: ").append(mimeType).append(LINE_END).append(LINE_END);
                     byte[] beforeDataBytes = beforeData.toString().getBytes("UTF-8");
-                    byte[] tailParamsBytes = (LINE_END + LINE_START + BOUNDARY + LINE_START + LINE_END).getBytes("UTF-8");
+                    byte[] tailParamsBytes = (LINE_END + LINE_START + boundary + LINE_START + LINE_END).getBytes("UTF-8");
 
 
                     // Get a input stream of the file on the phone
